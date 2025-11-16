@@ -37,27 +37,29 @@ COLOR_PALETTE = [
     'background-color: #F0E68C'
 ]
 
-# --- TEXT CLEANUP FUNCTION ---
+# --- TEXT CLEANUP FUNCTION (UPDATED) ---
 
 def clean_dialogue_text(text):
     """
-    Converts HTML/XML style formatting tags (i, b, u) to Markdown equivalents.
+    Converts HTML/XML style formatting tags (i, b, u) to text enclosed in parentheses ().
     """
     # Use re.IGNORECASE for case-insensitive matching (e.g., <i> or <I>)
     
-    # 1. Italic/Emphasis: <i>text</i> -> *text*
-    text = re.sub(r'<i>(.*?)</i>', r'*\1*', text, flags=re.IGNORECASE | re.DOTALL)
+    # 1. Italic/Emphasis: <i>text</i> -> (text)
+    # The non-greedy matching (.*?) ensures it handles multiple tags correctly.
+    text = re.sub(r'<i[^>]*>(.*?)</i[^>]*>', r'(\1)', text, flags=re.IGNORECASE | re.DOTALL)
     
-    # 2. Bold/Strong: <b>text</b> -> **text**
-    text = re.sub(r'<b>(.*?)</b>', r'**\1**', text, flags=re.IGNORECASE | re.DOTALL)
+    # 2. Bold/Strong: <b>text</b> -> (text)
+    text = re.sub(r'<b[^>]*>(.*?)</b[^>]*>', r'(\1)', text, flags=re.IGNORECASE | re.DOTALL)
     
-    # 3. Underline: <u>text</u> -> **text** (Substituted with Bold)
-    text = re.sub(r'<u>(.*?)</u>', r'**\1**', text, flags=re.IGNORECASE | re.DOTALL)
+    # 3. Underline: <u>text</u> -> (text)
+    text = re.sub(r'<u[^>]*>(.*?)</u[^>]*>', r'(\1)', text, flags=re.IGNORECASE | re.DOTALL)
     
     # Remove any other remaining unknown tags (to clean up the final output)
     text = re.sub(r'<[^>]*>', '', text, flags=re.DOTALL)
     
-    return text
+    # Final cleanup of extra spaces
+    return re.sub(r'\s+', ' ', text).strip()
 
 # --- SPEAKER VALIDATION ---
 
