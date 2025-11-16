@@ -25,28 +25,41 @@ NON_SPEAKER_PHRASES = [
     "i said"                
 ]
 
-# Color palette for distinct speaker styling (light background colors)
+# Robust Color Palette combining Background and Text colors for high contrast (18 unique styles)
+# Format: 'background-color: #HEX; color: #HEX'
 COLOR_PALETTE = [
-    'background-color: #ADD8E6',
-    'background-color: #90EE90',
-    'background-color: #FFB6C1',
-    'background-color: #FFFFE0',
-    'background-color: #DDA0DD',
-    'background-color: #E6E6FA',
-    'background-color: #AFEEEE',
-    'background-color: #F0E68C'
+    # Light Backgrounds, Dark Text
+    'background-color: #ADD8E6; color: #000000', # Light Blue
+    'background-color: #90EE90; color: #000000', # Light Green
+    'background-color: #FFB6C1; color: #000000', # Light Pink
+    'background-color: #FFFFE0; color: #000000', # Light Yellow
+    'background-color: #DDA0DD; color: #000000', # Light Purple
+    'background-color: #AFEEEE; color: #000000', # Pale Turquoise
+    'background-color: #F0E68C; color: #000000', # Khaki
+    'background-color: #FFA07A; color: #000000', # Light Salmon
+    'background-color: #E0FFFF; color: #000000', # Light Cyan
+    'background-color: #F5F5DC; color: #000000', # Beige
+
+    # Dark Backgrounds, Light Text
+    'background-color: #2F4F4F; color: #FFFFFF', # Dark Slate Gray
+    'background-color: #191970; color: #FFFFFF', # Midnight Blue
+    'background-color: #006400; color: #FFFFFF', # Dark Green
+    'background-color: #800000; color: #FFFFFF', # Maroon
+    'background-color: #4B0082; color: #FFFFFF', # Indigo
+    'background-color: #556B2F; color: #FFFFFF', # Dark Olive Green
+    'background-color: #8B4513; color: #FFFFFF', # Saddle Brown
+    'background-color: #36454F; color: #FFFFFF', # Charcoal
 ]
 
-# --- TEXT CLEANUP FUNCTION (UPDATED) ---
+# --- TEXT CLEANUP FUNCTION ---
 
 def clean_dialogue_text(text):
     """
     Converts HTML/XML style formatting tags (i, b, u) to text enclosed in parentheses ().
     """
-    # Use re.IGNORECASE for case-insensitive matching (e.g., <i> or <I>)
+    # Use re.IGNORECASE for case-insensitive matching
     
     # 1. Italic/Emphasis: <i>text</i> -> (text)
-    # The non-greedy matching (.*?) ensures it handles multiple tags correctly.
     text = re.sub(r'<i[^>]*>(.*?)</i[^>]*>', r'(\1)', text, flags=re.IGNORECASE | re.DOTALL)
     
     # 2. Bold/Strong: <b>text</b> -> (text)
@@ -55,7 +68,7 @@ def clean_dialogue_text(text):
     # 3. Underline: <u>text</u> -> (text)
     text = re.sub(r'<u[^>]*>(.*?)</u[^>]*>', r'(\1)', text, flags=re.IGNORECASE | re.DOTALL)
     
-    # Remove any other remaining unknown tags (to clean up the final output)
+    # Remove any other remaining unknown tags
     text = re.sub(r'<[^>]*>', '', text, flags=re.DOTALL)
     
     # Final cleanup of extra spaces
@@ -203,18 +216,23 @@ def parse_srt(srt_content):
     return pd.DataFrame(data, columns=['Start', 'End', 'Speaker', 'Dialogue'])
 
 def apply_styles(df):
-    """Applies distinct background color styling per speaker."""
+    """Applies distinct background color styling and text color per speaker."""
     unique_speakers = df['Speaker'].unique()
+    
+    # Map each unique speaker to a unique style string from the COLOR_PALETTE
     color_map = {
         speaker: COLOR_PALETTE[i % len(COLOR_PALETTE)]
         for i, speaker in enumerate(unique_speakers)
     }
 
     def highlight_speaker(row):
-        color_style = color_map.get(row['Speaker'], 'background-color: #FFFFFF')
+        # Retrieve the combined background-color and color style string
+        color_style = color_map.get(row['Speaker'], 'background-color: #FFFFFF; color: #000000')
+        # Return the style string for every column in the row
         return [color_style] * len(row)
     
     try:
+        # Apply the combined style string
         styled_df = df.style.apply(highlight_speaker, axis=1)
         return styled_df
     except Exception:
