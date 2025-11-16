@@ -5,15 +5,15 @@ import io
 from datetime import datetime
 
 # --- CONFIGURATION ---
-MAX_SPEAKER_NAME_LENGTH = 35 # Increased length limit for combined names
+MAX_SPEAKER_NAME_LENGTH = 35 # Increased length limit for combined names (e.g., Ethan & Leo)
 
 # List of common non-speaker phrases to explicitly exclude (must be lowercase)
+# User can add more phrases here to improve accuracy
 NON_SPEAKER_PHRASES = [
     "the only problem",  # Excluded per user request
     "note",              # Common non-speaker tag
     "warning",           # Common non-speaker tag
     "things"             # Example of common noun
-    # Add more non-speaker phrases here as needed
 ]
 
 # Color palette for distinct speaker styling (light background colors)
@@ -28,7 +28,7 @@ COLOR_PALETTE = [
     'background-color: #F0E68C'
 ]
 
-# --- SPEAKER VALIDATION (FINAL IMPROVED VERSION) ---
+# --- SPEAKER VALIDATION ---
 
 def is_valid_speaker_tag(tag):
     """
@@ -77,6 +77,7 @@ def parse_srt(srt_content):
     Parses SRT content to extract Start, End timecodes, Speaker, and Dialogue.
     """
     data = []
+    # Split content into subtitle blocks
     blocks = re.split(r'\n\s*\n', srt_content.strip())
     
     last_known_speaker = "Unknown" 
@@ -112,7 +113,7 @@ def parse_srt(srt_content):
             if speaker_match:
                 potential_speaker = speaker_match.group(1).strip()
                 
-                # VALIDATION STEP: Check if the tag is likely a speaker name (using the improved function)
+                # VALIDATION STEP: Check if the tag is likely a speaker name
                 if is_valid_speaker_tag(potential_speaker):
                     
                     # 1. Finalize previous accumulated dialogue, if any
@@ -138,7 +139,7 @@ def parse_srt(srt_content):
                         current_dialogue = ""
                         
                 else:
-                    # Tag failed validation (e.g., "The only problem:") -> Treat as Continuation/Unknown Dialogue
+                    # Tag failed validation -> Treat as Continuation/Unknown Dialogue
                     if current_dialogue:
                         current_dialogue += " " + line
                     else:
@@ -183,9 +184,7 @@ def main_app():
     st.title("🎬 SRT to Excel Converter (Intelligent Speaker Recognition)")
     st.markdown("---")
 
-    st.markdown("""
-    **Hướng dẫn:** Ứng dụng này sử dụng **quy tắc viết hoa** và **danh sách loại trừ** để phân biệt chính xác giữa Người nói (ví dụ: `Tyler:`, `Ethan & Leo:`) và các cụm từ danh nghĩa (ví dụ: `The only problem:`, `things:`).
-    """)
+    # The requested instruction markdown line is removed here.
 
     uploaded_file = st.file_uploader("Tải lên file SRT (.srt)", type="srt")
 
@@ -198,7 +197,7 @@ def main_app():
                 srt_content = uploaded_file.read().decode("latin-1")
                 
         except Exception:
-            st.error("Lỗi mã hóa file. Vui lòng đảm bảo file SRT của bạn được lưu dưới dạng UTF-8.")
+            st.error("File encoding error. Please ensure your SRT file is correctly encoded (UTF-8 is recommended).")
             return
 
         with st.spinner('Đang phân tích dữ liệu SRT...'):
@@ -220,7 +219,7 @@ def main_app():
         output.seek(0)
 
         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-        file_name = f"SRT_Converted_{timestamp}_V4.xlsx" # Updated version number V4
+        file_name = f"SRT_Converted_{timestamp}_V5.xlsx" # Updated version number V5
         
         st.download_button(
             label="💾 Tải xuống File Excel (.xlsx)",
