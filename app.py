@@ -6,7 +6,7 @@ from datetime import datetime
 
 # --- CONFIGURATION ---
 MAX_SPEAKER_NAME_LENGTH = 35 
-MAX_SPEAKER_NAME_WORDS = 4 # Heuristic: Speaker tag should not exceed 4 words
+MAX_SPEAKER_NAME_WORDS = 4 
 
 # List of common non-speaker phrases to explicitly exclude (must be lowercase)
 NON_SPEAKER_PHRASES = [
@@ -18,7 +18,7 @@ NON_SPEAKER_PHRASES = [
     "this is the highest swing in europe",
     "and i swear",
     "which meant",
-    "the only thing is" # Newly added exclusion
+    "the only thing is"
 ]
 
 # Color palette for distinct speaker styling (light background colors)
@@ -45,7 +45,7 @@ def is_valid_speaker_tag(tag):
     if not tag:
         return False
 
-    # 1. Exclusion Check: If the tag matches a known non-speaker phrase, reject it.
+    # 1. Exclusion Check
     if tag.lower() in NON_SPEAKER_PHRASES:
         return False
         
@@ -53,8 +53,7 @@ def is_valid_speaker_tag(tag):
     if len(tag) > MAX_SPEAKER_NAME_LENGTH:
         return False
 
-    # 3. Word Count Heuristic Check (Strong Filter)
-    # Normalize the tag for accurate word counting (handle 'and' and '&')
+    # 3. Word Count Heuristic Check
     normalized_tag = tag.replace(' and ', ' ').replace(' and', '').replace('&', ' ').strip()
     
     if not normalized_tag:
@@ -62,7 +61,6 @@ def is_valid_speaker_tag(tag):
         
     word_count = len(normalized_tag.split())
     if word_count > MAX_SPEAKER_NAME_WORDS:
-        # A tag with 5 or more words is extremely unlikely to be a speaker name.
         return False 
 
 
@@ -71,14 +69,11 @@ def is_valid_speaker_tag(tag):
     first_word = normalized_tag.split()[0] if normalized_tag.split() else normalized_tag
     
     if first_word[0].isalpha() and first_word[0].islower():
-        # Fails if the very first word starts with a lowercase letter (e.g., "things:")
         return False
         
     if tag.isupper():
-        # Allows all-caps roles like "NARRATOR"
         return True
         
-    # Passes if it starts with an uppercase letter and is under the word limit.
     return True
 
 
@@ -192,7 +187,8 @@ def apply_styles(df):
 
 def main_app():
     st.set_page_config(page_title="SRT to Excel Converter", layout="wide")
-    st.title("🎬 SRT to Excel Converter (Intelligent Speaker Recognition)")
+    # Title updated: removed (Intelligent Speaker Recognition)
+    st.title("🎬 SRT to Excel Converter") 
     st.markdown("---")
 
     uploaded_file = st.file_uploader("Upload SRT File (.srt)", type="srt")
