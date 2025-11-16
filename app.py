@@ -119,12 +119,19 @@ def is_valid_speaker_tag(tag):
 def parse_srt(srt_content):
     """
     Parses SRT content to extract Start, End timecodes, Speaker, and Dialogue.
-    Handles same-line interjections.
+    Handles same-line interjections and prevents interjection speaker bleeding.
     """
     data = []
     blocks = re.split(r'\n\s*\n', srt_content.strip())
     
     last_known_speaker = "Unknown" 
+
+    # Helper function to append a row and update last_known_speaker
+    def append_row_and_update_state(speaker, dialogue):
+        nonlocal last_known_speaker
+        data.append([time_start, time_end, speaker, clean_dialogue_text(dialogue)])
+        # CRITICAL FIX: Always update global state based on the last entry created.
+        last_known_speaker = speaker 
 
     for block in blocks:
         lines = block.strip().split('\n')
@@ -142,29 +149,26 @@ def parse_srt(srt_content):
 
         dialogue_lines = lines[2:]
 
-        current_speaker = None
         current_dialogue = ""
+        # Store the speaker who initiated the block's dialogue, 
+        # used as the default if no new speaker is found within the block.
+        block_initial_speaker = last_known_speaker
         
-        # New robust logic to handle multi-line accumulation AND same-line interjections
+        # --- Multi-line and Multi-speaker processing within the block ---
+        
         for line in dialogue_lines:
             line = line.strip()
             if not line:
                 continue
 
-            # Split the line by the pattern (Potential_Speaker: ) and capture the delimiter
-            # This handles any number of interjections, including the speaker at the start.
+            # Pattern to split line by (Potential_Speaker: ) and capture the delimiter
+            # Example: "Hello. John: How are you? Jane: Fine."
             segments = re.split(r'((?:[\w\s&]+?): )', line)
             
-            # --- Case 1: No Interjection Found on this line (len(segments) <= 1) ---
-            if len(segments) <= 1:
-                # Simple accumulation of the line
-                if current_dialogue:
-                    current_dialogue += " " + line
-                else:
-                    current_dialogue = line
-                continue # Move to next line in the block
-
-            # --- Case 2: Interjection(s) or Speaker at start found (len(segments) > 1) ---
+            # The first segment is always dialogue (may be empty if line starts with Speaker:)
+            # The pattern creates segments like: [dialogue_before_tag, tag, dialogue_after_tag, tag, ...]
+            
+            # --- Process segments in order ---
             
             i = 0
             while i < len(segments):
@@ -173,64 +177,62 @@ def parse_srt(srt_content):
                 
                 if not segment:
                     continue
-
-                # Check if the segment is a captured speaker tag (ends with ':')
-                if segment.endswith(':'):
-                    # Finalize current accumulated dialogue (This dialogue came before the tag)
-                    if current_dialogue:
-                        speaker_to_use = current_speaker if current_speaker is not None else last_known_speaker
-                        data.append([time_start, time_end, speaker_to_use, clean_dialogue_text(current_dialogue)])
-                        current_dialogue = "" # Flush
-                        current_speaker = None # Reset context
-
-                    # Process the Speaker Tag
+                    
+                # 1. Check if the segment is a captured speaker tag (ends with ':')
+                if segment.endswith(':') and len(segment) > 1:
                     speaker_tag = segment[:-1].strip()
                     
                     if is_valid_speaker_tag(speaker_tag):
                         
+                        # --- Flush Accumulated Dialogue Before New Speaker ---
+                        if current_dialogue:
+                            # Use block_initial_speaker for the accumulated segment if this is the first flush 
+                            # (i.e., if it's the dialogue at the start of the block).
+                            # Otherwise, use last_known_speaker.
+                            speaker_to_use = block_initial_speaker if not data or data[-1][0] != time_start else last_known_speaker
+                            append_row_and_update_state(speaker_to_use, current_dialogue)
+                            current_dialogue = "" # Flush
+                            
+                        # --- Process New/Interjection Speaker ---
                         speaker = speaker_tag
-                        last_known_speaker = speaker_tag
-                        
-                        # Get the dialogue for this speaker from the next segment
                         dialogue_segment = segments[i].strip() if i < len(segments) else ""
-                        i += 1 # Advance to the next segment
-
+                        i += 1 # Advance to the dialogue segment
+                        
                         # Create a new entry immediately for the interjection/new speaker
                         if dialogue_segment:
-                            data.append([time_start, time_end, speaker, clean_dialogue_text(dialogue_segment)])
-                        
-                        # Reset context after a self-contained entry
-                        current_speaker = None
-                        current_dialogue = ""
-                        
+                            append_row_and_update_state(speaker, dialogue_segment)
+                            
+                        # If this is the FIRST speaker identified in the block, set the block context
+                        if block_initial_speaker == last_known_speaker:
+                             block_initial_speaker = speaker
+                            
                     else:
-                        # Invalid speaker tag (e.g., "The only problem:"). 
-                        # Reconstruct the invalid tag and its following text
+                        # 2. Invalid speaker tag (e.g., "The only problem:") -> Reconstruct and accumulate
                         dialogue_segment = segments[i].strip() if i < len(segments) else ""
                         i += 1
                         recombined_text = segment + " " + dialogue_segment
                         
-                        # Re-accumulate the text (this preserves the content)
                         if current_dialogue:
                             current_dialogue += " " + recombined_text
                         else:
                             current_dialogue = recombined_text
                         
                 else:
-                    # This is dialogue text (before the first tag, or after an invalid tag)
+                    # 3. This is dialogue text (no tag) -> Accumulate
                     if current_dialogue:
                         current_dialogue += " " + segment
                     else:
                         current_dialogue = segment
-                        
+
             # End of line processing for segments. current_dialogue may hold leftovers.
             
         # Finalize the last accumulated dialogue for the entire block
         if current_dialogue:
-            speaker_to_use = current_speaker if current_speaker is not None else last_known_speaker
+            # If the block has previous entries, use the last known speaker.
+            # If the block is entirely one accumulated dialogue, use the global last_known_speaker (block_initial_speaker).
+            speaker_to_use = block_initial_speaker if not data or data[-1][0] != time_start else last_known_speaker
             
-            cleaned_dialogue = clean_dialogue_text(current_dialogue)
-            data.append([time_start, time_end, speaker_to_use, cleaned_dialogue])
+            append_row_and_update_state(speaker_to_use, current_dialogue)
 
     return pd.DataFrame(data, columns=['Start', 'End', 'Speaker', 'Dialogue'])
 
