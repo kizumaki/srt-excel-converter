@@ -25,30 +25,26 @@ NON_SPEAKER_PHRASES = [
     "i said"                
 ]
 
-# Robust Color Palette combining Background and Text colors for high contrast (18 unique styles)
-# Format: 'background-color: #HEX; color: #HEX'
+# Color palette for distinct speaker styling (18 unique styles)
 COLOR_PALETTE = [
-    # Light Backgrounds, Dark Text
-    'background-color: #ADD8E6; color: #000000', # Light Blue
-    'background-color: #90EE90; color: #000000', # Light Green
-    'background-color: #FFB6C1; color: #000000', # Light Pink
-    'background-color: #FFFFE0; color: #000000', # Light Yellow
-    'background-color: #DDA0DD; color: #000000', # Light Purple
-    'background-color: #AFEEEE; color: #000000', # Pale Turquoise
-    'background-color: #F0E68C; color: #000000', # Khaki
-    'background-color: #FFA07A; color: #000000', # Light Salmon
-    'background-color: #E0FFFF; color: #000000', # Light Cyan
-    'background-color: #F5F5DC; color: #000000', # Beige
-
-    # Dark Backgrounds, Light Text
-    'background-color: #2F4F4F; color: #FFFFFF', # Dark Slate Gray
-    'background-color: #191970; color: #FFFFFF', # Midnight Blue
-    'background-color: #006400; color: #FFFFFF', # Dark Green
-    'background-color: #800000; color: #FFFFFF', # Maroon
-    'background-color: #4B0082; color: #FFFFFF', # Indigo
-    'background-color: #556B2F; color: #FFFFFF', # Dark Olive Green
-    'background-color: #8B4513; color: #FFFFFF', # Saddle Brown
-    'background-color: #36454F; color: #FFFFFF', # Charcoal
+    'background-color: #ADD8E6; color: #000000',
+    'background-color: #90EE90; color: #000000',
+    'background-color: #FFB6C1; color: #000000',
+    'background-color: #FFFFE0; color: #000000',
+    'background-color: #DDA0DD; color: #000000',
+    'background-color: #AFEEEE; color: #000000',
+    'background-color: #F0E68C; color: #000000',
+    'background-color: #FFA07A; color: #000000',
+    'background-color: #E0FFFF; color: #000000',
+    'background-color: #F5F5DC; color: #000000',
+    'background-color: #2F4F4F; color: #FFFFFF',
+    'background-color: #191970; color: #FFFFFF',
+    'background-color: #006400; color: #FFFFFF',
+    'background-color: #800000; color: #FFFFFF',
+    'background-color: #4B0082; color: #FFFFFF',
+    'background-color: #556B2F; color: #FFFFFF',
+    'background-color: #8B4513; color: #FFFFFF',
+    'background-color: #36454F; color: #FFFFFF',
 ]
 
 # --- TEXT CLEANUP FUNCTION ---
@@ -123,6 +119,7 @@ def is_valid_speaker_tag(tag):
 def parse_srt(srt_content):
     """
     Parses SRT content to extract Start, End timecodes, Speaker, and Dialogue.
+    Handles same-line interjections.
     """
     data = []
     blocks = re.split(r'\n\s*\n', srt_content.strip())
@@ -148,68 +145,90 @@ def parse_srt(srt_content):
         current_speaker = None
         current_dialogue = ""
         
-        # Regex to allow letters, numbers, spaces, and '&' in potential speaker names
+        # New robust logic to handle multi-line accumulation AND same-line interjections
         for line in dialogue_lines:
             line = line.strip()
             if not line:
                 continue
 
-            # Check for "Speaker:" or "Speaker: Dialogue"
-            speaker_match = re.match(r'^([\w\s&]+?): ?(.*)$', line, re.DOTALL)
+            # Split the line by the pattern (Potential_Speaker: ) and capture the delimiter
+            # This handles any number of interjections, including the speaker at the start.
+            segments = re.split(r'((?:[\w\s&]+?): )', line)
             
-            if speaker_match:
-                potential_speaker = speaker_match.group(1).strip()
-                
-                # VALIDATION STEP: Check if the tag is likely a speaker name
-                if is_valid_speaker_tag(potential_speaker):
-                    
-                    # 1. Finalize previous accumulated dialogue, if any
-                    if current_dialogue:
-                        speaker_to_use = current_speaker if current_speaker is not None else last_known_speaker
-                        
-                        # Apply cleanup before appending
-                        cleaned_dialogue = clean_dialogue_text(current_dialogue)
-                        data.append([time_start, time_end, speaker_to_use, cleaned_dialogue])
-                    
-                    speaker = potential_speaker
-                    last_known_speaker = speaker
-
-                    # Check if it's Speaker only (Case 1)
-                    dialogue_part = speaker_match.group(2).strip()
-                    if not dialogue_part:
-                        # Case 1: Speaker only on this line (e.g., "Tyler:")
-                        current_speaker = speaker
-                        current_dialogue = ""
-                    else:
-                        # Case 2: Speaker and dialogue on the same line (e.g., "Tyler: Good game.")
-                        
-                        # Apply cleanup before appending
-                        cleaned_dialogue_part = clean_dialogue_text(dialogue_part)
-                        data.append([time_start, time_end, speaker, cleaned_dialogue_part])
-                        
-                        # Reset context for next line
-                        current_speaker = None
-                        current_dialogue = ""
-                        
-                else:
-                    # Tag failed validation -> Treat as Continuation/Unknown Dialogue
-                    if current_dialogue:
-                        current_dialogue += " " + line
-                    else:
-                        current_dialogue = line
-
-            else:
-                # Case 3: No explicit Speaker -> Continuation/Unknown
+            # --- Case 1: No Interjection Found on this line (len(segments) <= 1) ---
+            if len(segments) <= 1:
+                # Simple accumulation of the line
                 if current_dialogue:
                     current_dialogue += " " + line
                 else:
                     current_dialogue = line
+                continue # Move to next line in the block
 
-        # Finalize the last accumulated dialogue
+            # --- Case 2: Interjection(s) or Speaker at start found (len(segments) > 1) ---
+            
+            i = 0
+            while i < len(segments):
+                segment = segments[i].strip()
+                i += 1
+                
+                if not segment:
+                    continue
+
+                # Check if the segment is a captured speaker tag (ends with ':')
+                if segment.endswith(':'):
+                    # Finalize current accumulated dialogue (This dialogue came before the tag)
+                    if current_dialogue:
+                        speaker_to_use = current_speaker if current_speaker is not None else last_known_speaker
+                        data.append([time_start, time_end, speaker_to_use, clean_dialogue_text(current_dialogue)])
+                        current_dialogue = "" # Flush
+                        current_speaker = None # Reset context
+
+                    # Process the Speaker Tag
+                    speaker_tag = segment[:-1].strip()
+                    
+                    if is_valid_speaker_tag(speaker_tag):
+                        
+                        speaker = speaker_tag
+                        last_known_speaker = speaker_tag
+                        
+                        # Get the dialogue for this speaker from the next segment
+                        dialogue_segment = segments[i].strip() if i < len(segments) else ""
+                        i += 1 # Advance to the next segment
+
+                        # Create a new entry immediately for the interjection/new speaker
+                        if dialogue_segment:
+                            data.append([time_start, time_end, speaker, clean_dialogue_text(dialogue_segment)])
+                        
+                        # Reset context after a self-contained entry
+                        current_speaker = None
+                        current_dialogue = ""
+                        
+                    else:
+                        # Invalid speaker tag (e.g., "The only problem:"). 
+                        # Reconstruct the invalid tag and its following text
+                        dialogue_segment = segments[i].strip() if i < len(segments) else ""
+                        i += 1
+                        recombined_text = segment + " " + dialogue_segment
+                        
+                        # Re-accumulate the text (this preserves the content)
+                        if current_dialogue:
+                            current_dialogue += " " + recombined_text
+                        else:
+                            current_dialogue = recombined_text
+                        
+                else:
+                    # This is dialogue text (before the first tag, or after an invalid tag)
+                    if current_dialogue:
+                        current_dialogue += " " + segment
+                    else:
+                        current_dialogue = segment
+                        
+            # End of line processing for segments. current_dialogue may hold leftovers.
+            
+        # Finalize the last accumulated dialogue for the entire block
         if current_dialogue:
             speaker_to_use = current_speaker if current_speaker is not None else last_known_speaker
             
-            # Apply cleanup before appending
             cleaned_dialogue = clean_dialogue_text(current_dialogue)
             data.append([time_start, time_end, speaker_to_use, cleaned_dialogue])
 
@@ -219,20 +238,16 @@ def apply_styles(df):
     """Applies distinct background color styling and text color per speaker."""
     unique_speakers = df['Speaker'].unique()
     
-    # Map each unique speaker to a unique style string from the COLOR_PALETTE
     color_map = {
         speaker: COLOR_PALETTE[i % len(COLOR_PALETTE)]
         for i, speaker in enumerate(unique_speakers)
     }
 
     def highlight_speaker(row):
-        # Retrieve the combined background-color and color style string
         color_style = color_map.get(row['Speaker'], 'background-color: #FFFFFF; color: #000000')
-        # Return the style string for every column in the row
         return [color_style] * len(row)
     
     try:
-        # Apply the combined style string
         styled_df = df.style.apply(highlight_speaker, axis=1)
         return styled_df
     except Exception:
@@ -249,7 +264,6 @@ def main_app():
 
     if uploaded_file is not None:
         try:
-            # Read and decode file content with fallback encoding
             try:
                 srt_content = uploaded_file.read().decode("utf-8")
             except UnicodeDecodeError:
@@ -277,9 +291,7 @@ def main_app():
         styled_df_display.to_excel(output, index=False, engine='openpyxl')
         output.seek(0)
 
-        # Get original file name base
         original_name_base = uploaded_file.name.rsplit('.', 1)[0]
-        # Set new file name
         file_name = f"{original_name_base}.xlsx"
         
         st.download_button(
