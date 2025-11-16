@@ -7,6 +7,15 @@ from datetime import datetime
 # --- CONFIGURATION ---
 MAX_SPEAKER_NAME_LENGTH = 35 # Increased length limit for combined names
 
+# List of common non-speaker phrases to explicitly exclude (must be lowercase)
+NON_SPEAKER_PHRASES = [
+    "the only problem",  # Excluded per user request
+    "note",              # Common non-speaker tag
+    "warning",           # Common non-speaker tag
+    "things"             # Example of common noun
+    # Add more non-speaker phrases here as needed
+]
+
 # Color palette for distinct speaker styling (light background colors)
 COLOR_PALETTE = [
     'background-color: #ADD8E6',
@@ -19,36 +28,34 @@ COLOR_PALETTE = [
     'background-color: #F0E68C'
 ]
 
-# --- SPEAKER VALIDATION (IMPROVED) ---
+# --- SPEAKER VALIDATION (FINAL IMPROVED VERSION) ---
 
 def is_valid_speaker_tag(tag):
     """
-    Checks if a tag is likely a speaker name based on capitalization and allowed character rules.
-    Allows for names connected by 'and' or '&'.
+    Checks if a tag is likely a speaker name based on exclusion list,
+    capitalization, and allowed character rules.
     """
     tag = tag.strip()
     
-    # 1. Length check
-    if len(tag) > MAX_SPEAKER_NAME_LENGTH:
-        return False
-        
     if not tag:
         return False
 
-    # 2. Capitalization and Character check (Improved Heuristic)
-    # The pattern should allow:
-    # - Uppercase letters, lowercase letters
-    # - Spaces
-    # - The word 'and' (case-insensitive)
-    # - The ampersand symbol '&'
+    # 1. Exclusion Check: If the tag matches a known non-speaker phrase, reject it.
+    if tag.lower() in NON_SPEAKER_PHRASES:
+        return False
+        
+    # 2. Length check
+    if len(tag) > MAX_SPEAKER_NAME_LENGTH:
+        return False
+
+    # 3. Capitalization check (Heuristic to filter common nouns)
     
-    # Normalize the tag for easier checking: replace " and " with a single space, and '&' with a space.
+    # Normalize the tag to check the first word's capitalization
     normalized_tag = tag.replace(' and ', ' ').replace(' and', '').replace('&', ' ').strip()
     
     if not normalized_tag:
         return False
 
-    # Check if the first word/name in the group starts with an uppercase letter
     first_word = normalized_tag.split()[0] if normalized_tag.split() else normalized_tag
     
     if first_word[0].isalpha() and first_word[0].islower():
@@ -59,8 +66,7 @@ def is_valid_speaker_tag(tag):
     if tag.isupper():
         return True
         
-    # Final check: Must primarily consist of letters, numbers, spaces, and connectors.
-    # We rely heavily on the capitalization check to filter out common nouns.
+    # Passes if it starts with an uppercase letter, allowing for names/roles.
     return True
 
 
@@ -82,7 +88,6 @@ def parse_srt(srt_content):
 
         # Extract Timecodes (Start and End)
         time_line = lines[1].strip()
-        # Updated Regex to be more flexible with speaker names containing special characters and spaces
         time_match = re.match(r'(\d{2}:\d{2}:\d{2},\d{3}) --> (\d{2}:\d{2}:\d{2},\d{3})', time_line)
         if not time_match:
             continue
@@ -95,11 +100,7 @@ def parse_srt(srt_content):
         current_speaker = None
         current_dialogue = ""
         
-        # New Regex to allow spaces, & and 'and' in potential speaker names
-        # Pattern: ^([\w\s&]+?): ?(.*)$
-        # Group 1: The speaker name (allows letters, numbers, spaces, and '&')
-        # The '?' makes the quantifier non-greedy, which is important for names.
-
+        # Regex to allow letters, numbers, spaces, and '&' in potential speaker names
         for line in dialogue_lines:
             line = line.strip()
             if not line:
@@ -137,7 +138,7 @@ def parse_srt(srt_content):
                         current_dialogue = ""
                         
                 else:
-                    # Tag failed validation (e.g., "things:") -> Treat as Continuation/Unknown Dialogue
+                    # Tag failed validation (e.g., "The only problem:") -> Treat as Continuation/Unknown Dialogue
                     if current_dialogue:
                         current_dialogue += " " + line
                     else:
@@ -183,7 +184,7 @@ def main_app():
     st.markdown("---")
 
     st.markdown("""
-    **Hướng dẫn:** Tải lên file **SRT (.srt)** của bạn. Ứng dụng sẽ tự động phân tích và sử dụng **quy tắc viết hoa** cùng **nhận diện tên nhóm (ví dụ: Ethan & Leo)** để xác định Người nói một cách chính xác nhất.
+    **Hướng dẫn:** Ứng dụng này sử dụng **quy tắc viết hoa** và **danh sách loại trừ** để phân biệt chính xác giữa Người nói (ví dụ: `Tyler:`, `Ethan & Leo:`) và các cụm từ danh nghĩa (ví dụ: `The only problem:`, `things:`).
     """)
 
     uploaded_file = st.file_uploader("Tải lên file SRT (.srt)", type="srt")
@@ -219,7 +220,7 @@ def main_app():
         output.seek(0)
 
         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-        file_name = f"SRT_Converted_{timestamp}_V3.xlsx" # Updated version number V3
+        file_name = f"SRT_Converted_{timestamp}_V4.xlsx" # Updated version number V4
         
         st.download_button(
             label="💾 Tải xuống File Excel (.xlsx)",
