@@ -19,7 +19,6 @@ NON_SPEAKER_PHRASES = [
     "and i swear",
     "which meant",
     "the only thing is",
-    # Newly added exclusions:
     "and remember",         
     "official distance",    
     "first and foremost",   
@@ -37,6 +36,28 @@ COLOR_PALETTE = [
     'background-color: #AFEEEE',
     'background-color: #F0E68C'
 ]
+
+# --- TEXT CLEANUP FUNCTION ---
+
+def clean_dialogue_text(text):
+    """
+    Converts HTML/XML style formatting tags (i, b, u) to Markdown equivalents.
+    """
+    # Use re.IGNORECASE for case-insensitive matching (e.g., <i> or <I>)
+    
+    # 1. Italic/Emphasis: <i>text</i> -> *text*
+    text = re.sub(r'<i>(.*?)</i>', r'*\1*', text, flags=re.IGNORECASE | re.DOTALL)
+    
+    # 2. Bold/Strong: <b>text</b> -> **text**
+    text = re.sub(r'<b>(.*?)</b>', r'**\1**', text, flags=re.IGNORECASE | re.DOTALL)
+    
+    # 3. Underline: <u>text</u> -> **text** (Substituted with Bold)
+    text = re.sub(r'<u>(.*?)</u>', r'**\1**', text, flags=re.IGNORECASE | re.DOTALL)
+    
+    # Remove any other remaining unknown tags (to clean up the final output)
+    text = re.sub(r'<[^>]*>', '', text, flags=re.DOTALL)
+    
+    return text
 
 # --- SPEAKER VALIDATION ---
 
@@ -130,7 +151,10 @@ def parse_srt(srt_content):
                     # 1. Finalize previous accumulated dialogue, if any
                     if current_dialogue:
                         speaker_to_use = current_speaker if current_speaker is not None else last_known_speaker
-                        data.append([time_start, time_end, speaker_to_use, current_dialogue])
+                        
+                        # Apply cleanup before appending
+                        cleaned_dialogue = clean_dialogue_text(current_dialogue)
+                        data.append([time_start, time_end, speaker_to_use, cleaned_dialogue])
                     
                     speaker = potential_speaker
                     last_known_speaker = speaker
@@ -143,7 +167,10 @@ def parse_srt(srt_content):
                         current_dialogue = ""
                     else:
                         # Case 2: Speaker and dialogue on the same line (e.g., "Tyler: Good game.")
-                        data.append([time_start, time_end, speaker, dialogue_part])
+                        
+                        # Apply cleanup before appending
+                        cleaned_dialogue_part = clean_dialogue_text(dialogue_part)
+                        data.append([time_start, time_end, speaker, cleaned_dialogue_part])
                         
                         # Reset context for next line
                         current_speaker = None
@@ -166,7 +193,10 @@ def parse_srt(srt_content):
         # Finalize the last accumulated dialogue
         if current_dialogue:
             speaker_to_use = current_speaker if current_speaker is not None else last_known_speaker
-            data.append([time_start, time_end, speaker_to_use, current_dialogue])
+            
+            # Apply cleanup before appending
+            cleaned_dialogue = clean_dialogue_text(current_dialogue)
+            data.append([time_start, time_end, speaker_to_use, cleaned_dialogue])
 
     return pd.DataFrame(data, columns=['Start', 'End', 'Speaker', 'Dialogue'])
 
