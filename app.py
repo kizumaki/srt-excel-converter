@@ -18,7 +18,12 @@ NON_SPEAKER_PHRASES = [
     "this is the highest swing in europe",
     "and i swear",
     "which meant",
-    "the only thing is"
+    "the only thing is",
+    # Newly added exclusions:
+    "and remember",         
+    "official distance",    
+    "first and foremost",   
+    "i said"                
 ]
 
 # Color palette for distinct speaker styling (light background colors)
@@ -187,7 +192,6 @@ def apply_styles(df):
 
 def main_app():
     st.set_page_config(page_title="SRT to Excel Converter", layout="wide")
-    # Title updated: removed (Intelligent Speaker Recognition)
     st.title("🎬 SRT to Excel Converter") 
     st.markdown("---")
 
