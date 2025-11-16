@@ -25,13 +25,6 @@ NON_SPEAKER_PHRASES = [
     "i said"                
 ]
 
-# List of common sentence/clause starters and articles (must be lowercase)
-SENTENCE_STARTER_WORDS = [
-    "the", "this", "that", "and", "but", "it", "i", "we", "you", "they", "he", "she", 
-    "there", "here", "what", "which", "who", "when", "why", "how", "a", "an", "my", "his", 
-    "her", "your", "its", "our", "their"
-]
-
 # Color palette for distinct speaker styling (18 unique styles)
 COLOR_PALETTE = [
     'background-color: #ADD8E6; color: #000000',
@@ -60,6 +53,8 @@ def clean_dialogue_text(text):
     """
     Converts HTML/XML style formatting tags (i, b, u) to text enclosed in parentheses ().
     """
+    # Use re.IGNORECASE for case-insensitive matching
+    
     # 1. Italic/Emphasis: <i>text</i> -> (text)
     text = re.sub(r'<i[^>]*>(.*?)</i[^>]*>', r'(\1)', text, flags=re.IGNORECASE | re.DOTALL)
     
@@ -79,7 +74,8 @@ def clean_dialogue_text(text):
 
 def is_valid_speaker_tag(tag):
     """
-    Checks if a tag is likely a speaker name using multiple linguistic heuristics.
+    Checks if a tag is likely a speaker name based on exclusion list,
+    word count, capitalization, and allowed character rules.
     """
     tag = tag.strip()
     
@@ -103,18 +99,12 @@ def is_valid_speaker_tag(tag):
     word_count = len(normalized_tag.split())
     if word_count > MAX_SPEAKER_NAME_WORDS:
         return False 
+
+
+    # 4. Capitalization check (Heuristic to filter common nouns)
     
-    # Get the first word of the potential tag (in lowercase)
-    first_word = normalized_tag.split()[0].lower()
-
-
-    # 4. Sentence Starter Rejection
-    if first_word in SENTENCE_STARTER_WORDS:
-        if not tag.isupper(): # Allow all-caps roles (e.g., HOST)
-            return False
-
-
-    # 5. Capitalization check
+    first_word = normalized_tag.split()[0] if normalized_tag.split() else normalized_tag
+    
     if first_word[0].isalpha() and first_word[0].islower():
         return False
         
@@ -124,7 +114,7 @@ def is_valid_speaker_tag(tag):
     return True
 
 
-# --- SRT PROCESSING FUNCTIONS (FIXED) ---
+# --- SRT PROCESSING FUNCTIONS ---
 
 def parse_srt(srt_content):
     """
@@ -135,6 +125,13 @@ def parse_srt(srt_content):
     blocks = re.split(r'\n\s*\n', srt_content.strip())
     
     last_known_speaker = "Unknown" 
+
+    # Helper function to append a row and update last_known_speaker
+    def append_row_and_update_state(speaker, dialogue):
+        nonlocal last_known_speaker
+        data.append([time_start, time_end, speaker, clean_dialogue_text(dialogue)])
+        # CRITICAL FIX: Always update global state based on the last entry created.
+        last_known_speaker = speaker 
 
     for block in blocks:
         lines = block.strip().split('\n')
@@ -152,26 +149,26 @@ def parse_srt(srt_content):
 
         dialogue_lines = lines[2:]
 
-        block_entries = []
-        current_speaker = last_known_speaker
         current_dialogue = ""
+        # Store the speaker who initiated the block's dialogue, 
+        # used as the default if no new speaker is found within the block.
+        block_initial_speaker = last_known_speaker
         
-        # Speaker found in THIS block that should be carried over to the next block.
-        newly_established_speaker = None 
-
-        # Helper function to flush accumulated dialogue to block_entries
-        def flush_dialogue(speaker, dialogue):
-            if dialogue.strip():
-                block_entries.append([time_start, time_end, speaker, clean_dialogue_text(dialogue)])
-            return ""
-
+        # --- Multi-line and Multi-speaker processing within the block ---
+        
         for line in dialogue_lines:
             line = line.strip()
             if not line:
                 continue
 
-            # CRITICAL REGEX SPLIT: Split by the tag, capturing the tag.
+            # Pattern to split line by (Potential_Speaker: ) and capture the delimiter
+            # Example: "Hello. John: How are you? Jane: Fine."
             segments = re.split(r'((?:[\w\s&]+?): )', line)
+            
+            # The first segment is always dialogue (may be empty if line starts with Speaker:)
+            # The pattern creates segments like: [dialogue_before_tag, tag, dialogue_after_tag, tag, ...]
+            
+            # --- Process segments in order ---
             
             i = 0
             while i < len(segments):
@@ -180,54 +177,63 @@ def parse_srt(srt_content):
                 
                 if not segment:
                     continue
-
-                # 1. Check if the segment is an actual captured speaker tag (ends with ':')
-                if segment.endswith(':') and len(segment) > 1:
-                    potential_speaker = segment[:-1].strip()
                     
-                    if is_valid_speaker_tag(potential_speaker):
+                # 1. Check if the segment is a captured speaker tag (ends with ':')
+                if segment.endswith(':') and len(segment) > 1:
+                    speaker_tag = segment[:-1].strip()
+                    
+                    if is_valid_speaker_tag(speaker_tag):
                         
-                        # --- 1a. Flush accumulated dialogue before the new tag ---
+                        # --- Flush Accumulated Dialogue Before New Speaker ---
                         if current_dialogue:
-                            current_dialogue = flush_dialogue(current_speaker, current_dialogue)
-                        
-                        # --- 1b. Process the new Speaker and their dialogue ---
-                        current_speaker = potential_speaker
-                        
-                        dialogue_segment = segments[i].strip() if i < len(segments) else ""
-                        i += 1 
-                        
-                        if dialogue_segment:
-                            # Append the self-contained speaker entry
-                            current_dialogue = flush_dialogue(current_speaker, dialogue_segment)
-                            # CRITICAL: Keep this new speaker as the current_speaker for subsequent non-tagged lines.
+                            # Use block_initial_speaker for the accumulated segment if this is the first flush 
+                            # (i.e., if it's the dialogue at the start of the block).
+                            # Otherwise, use last_known_speaker.
+                            speaker_to_use = block_initial_speaker if not data or data[-1][0] != time_start else last_known_speaker
+                            append_row_and_update_state(speaker_to_use, current_dialogue)
+                            current_dialogue = "" # Flush
                             
-                        # Set local state for global carry-over:
-                        newly_established_speaker = current_speaker
+                        # --- Process New/Interjection Speaker ---
+                        speaker = speaker_tag
+                        dialogue_segment = segments[i].strip() if i < len(segments) else ""
+                        i += 1 # Advance to the dialogue segment
                         
+                        # Create a new entry immediately for the interjection/new speaker
+                        if dialogue_segment:
+                            append_row_and_update_state(speaker, dialogue_segment)
+                            
+                        # If this is the FIRST speaker identified in the block, set the block context
+                        if block_initial_speaker == last_known_speaker:
+                             block_initial_speaker = speaker
+                            
                     else:
-                        # 2. Invalid tag -> Reconstruct and accumulate
+                        # 2. Invalid speaker tag (e.g., "The only problem:") -> Reconstruct and accumulate
                         dialogue_segment = segments[i].strip() if i < len(segments) else ""
                         i += 1
                         recombined_text = segment + " " + dialogue_segment
-                        current_dialogue += (" " + recombined_text if current_dialogue else recombined_text)
-
-                # 3. Dialogue text segment -> Accumulate
-                else:
-                    current_dialogue += (" " + segment if current_dialogue else segment)
                         
-        # Final accumulation of the block's last dialogue segment
-        if current_dialogue:
-            current_dialogue = flush_dialogue(current_speaker, current_dialogue)
+                        if current_dialogue:
+                            current_dialogue += " " + recombined_text
+                        else:
+                            current_dialogue = recombined_text
+                        
+                else:
+                    # 3. This is dialogue text (no tag) -> Accumulate
+                    if current_dialogue:
+                        current_dialogue += " " + segment
+                    else:
+                        current_dialogue = segment
+
+            # End of line processing for segments. current_dialogue may hold leftovers.
             
-        # --- CRITICAL GLOBAL STATE UPDATE (FIX FOR BLEEDING) ---
-        # Append all block entries to the main data list
-        data.extend(block_entries)
-        
-        if newly_established_speaker:
-             # Only update the global state if a new speaker was successfully identified in this block.
-             last_known_speaker = newly_established_speaker
-             
+        # Finalize the last accumulated dialogue for the entire block
+        if current_dialogue:
+            # If the block has previous entries, use the last known speaker.
+            # If the block is entirely one accumulated dialogue, use the global last_known_speaker (block_initial_speaker).
+            speaker_to_use = block_initial_speaker if not data or data[-1][0] != time_start else last_known_speaker
+            
+            append_row_and_update_state(speaker_to_use, current_dialogue)
+
     return pd.DataFrame(data, columns=['Start', 'End', 'Speaker', 'Dialogue'])
 
 def apply_styles(df):
