@@ -6,7 +6,7 @@ from datetime import datetime
 
 # --- CONFIGURATION ---
 MAX_SPEAKER_NAME_LENGTH = 35 
-MAX_SPEAKER_NAME_WORDS = 4 # New heuristic: Speaker tag should not exceed 4 words
+MAX_SPEAKER_NAME_WORDS = 4 # Heuristic: Speaker tag should not exceed 4 words
 
 # List of common non-speaker phrases to explicitly exclude (must be lowercase)
 NON_SPEAKER_PHRASES = [
@@ -14,11 +14,11 @@ NON_SPEAKER_PHRASES = [
     "note",
     "warning",
     "things",
-    # New exclusions requested by user
     "and on the way we came across this",
     "this is the highest swing in europe",
     "and i swear",
-    "which meant"
+    "which meant",
+    "the only thing is" # Newly added exclusion
 ]
 
 # Color palette for distinct speaker styling (light background colors)
@@ -33,7 +33,7 @@ COLOR_PALETTE = [
     'background-color: #F0E68C'
 ]
 
-# --- SPEAKER VALIDATION (FINAL IMPROVED VERSION) ---
+# --- SPEAKER VALIDATION ---
 
 def is_valid_speaker_tag(tag):
     """
