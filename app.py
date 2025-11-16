@@ -25,6 +25,14 @@ NON_SPEAKER_PHRASES = [
     "i said"                
 ]
 
+# List of common sentence/clause starters and articles (must be lowercase)
+# If the potential speaker tag STARTS with one of these words, it's likely a sentence fragment, not a name.
+SENTENCE_STARTER_WORDS = [
+    "the", "this", "that", "and", "but", "it", "i", "we", "you", "they", "he", "she", 
+    "there", "here", "what", "which", "who", "when", "why", "how", "a", "an", "my", "his", 
+    "her", "your", "its", "our", "their"
+]
+
 # Color palette for distinct speaker styling (18 unique styles)
 COLOR_PALETTE = [
     'background-color: #ADD8E6; color: #000000',
@@ -47,42 +55,18 @@ COLOR_PALETTE = [
     'background-color: #36454F; color: #FFFFFF',
 ]
 
-# --- TEXT CLEANUP FUNCTION ---
-
-def clean_dialogue_text(text):
-    """
-    Converts HTML/XML style formatting tags (i, b, u) to text enclosed in parentheses ().
-    """
-    # Use re.IGNORECASE for case-insensitive matching
-    
-    # 1. Italic/Emphasis: <i>text</i> -> (text)
-    text = re.sub(r'<i[^>]*>(.*?)</i[^>]*>', r'(\1)', text, flags=re.IGNORECASE | re.DOTALL)
-    
-    # 2. Bold/Strong: <b>text</b> -> (text)
-    text = re.sub(r'<b[^>]*>(.*?)</b[^>]*>', r'(\1)', text, flags=re.IGNORECASE | re.DOTALL)
-    
-    # 3. Underline: <u>text</u> -> (text)
-    text = re.sub(r'<u[^>]*>(.*?)</u[^>]*>', r'(\1)', text, flags=re.IGNORECASE | re.DOTALL)
-    
-    # Remove any other remaining unknown tags
-    text = re.sub(r'<[^>]*>', '', text, flags=re.DOTALL)
-    
-    # Final cleanup of extra spaces
-    return re.sub(r'\s+', ' ', text).strip()
-
-# --- SPEAKER VALIDATION ---
+# --- SPEAKER VALIDATION (FINAL IMPROVEMENT) ---
 
 def is_valid_speaker_tag(tag):
     """
-    Checks if a tag is likely a speaker name based on exclusion list,
-    word count, capitalization, and allowed character rules.
+    Checks if a tag is likely a speaker name using multiple linguistic heuristics.
     """
     tag = tag.strip()
     
     if not tag:
         return False
 
-    # 1. Exclusion Check
+    # 1. Exclusion Check (Explicit block list)
     if tag.lower() in NON_SPEAKER_PHRASES:
         return False
         
@@ -99,20 +83,54 @@ def is_valid_speaker_tag(tag):
     word_count = len(normalized_tag.split())
     if word_count > MAX_SPEAKER_NAME_WORDS:
         return False 
+    
+    # Get the first word of the potential tag (in lowercase)
+    first_word = normalized_tag.split()[0].lower()
 
 
-    # 4. Capitalization check (Heuristic to filter common nouns)
+    # 4. Sentence Starter Rejection (New Logic)
+    # Reject if the tag starts with a common article, pronoun, or conjunction.
+    if first_word in SENTENCE_STARTER_WORDS:
+        # Exception: Allow if the tag is ALL CAPS (e.g., HOST, GUYS)
+        if not tag.isupper():
+            return False
+
+
+    # 5. Capitalization check (Heuristic to filter common nouns starting lowercase)
     
-    first_word = normalized_tag.split()[0] if normalized_tag.split() else normalized_tag
-    
+    # We only need to check if the first word starts lowercase if it passed the sentence starter check.
     if first_word[0].isalpha() and first_word[0].islower():
         return False
         
+    # Allow all-caps roles
     if tag.isupper():
         return True
         
+    # Passes if it starts with an uppercase letter, is short, and not a known starter/exclusion.
     return True
 
+
+# --- TEXT CLEANUP FUNCTION ---
+
+def clean_dialogue_text(text):
+    """
+    Converts HTML/XML style formatting tags (i, b, u) to text enclosed in parentheses ().
+    """
+    
+    # 1. Italic/Emphasis: <i>text</i> -> (text)
+    text = re.sub(r'<i[^>]*>(.*?)</i[^>]*>', r'(\1)', text, flags=re.IGNORECASE | re.DOTALL)
+    
+    # 2. Bold/Strong: <b>text</b> -> (text)
+    text = re.sub(r'<b[^>]*>(.*?)</b[^>]*>', r'(\1)', text, flags=re.IGNORECASE | re.DOTALL)
+    
+    # 3. Underline: <u>text</u> -> (text)
+    text = re.sub(r'<u[^>]*>(.*?)</u[^>]*>', r'(\1)', text, flags=re.IGNORECASE | re.DOTALL)
+    
+    # Remove any other remaining unknown tags
+    text = re.sub(r'<[^>]*>', '', text, flags=re.DOTALL)
+    
+    # Final cleanup of extra spaces
+    return re.sub(r'\s+', ' ', text).strip()
 
 # --- SRT PROCESSING FUNCTIONS ---
 
@@ -130,7 +148,7 @@ def parse_srt(srt_content):
     def append_row_and_update_state(speaker, dialogue):
         nonlocal last_known_speaker
         data.append([time_start, time_end, speaker, clean_dialogue_text(dialogue)])
-        # CRITICAL FIX: Always update global state based on the last entry created.
+        # Always update global state based on the last entry created.
         last_known_speaker = speaker 
 
     for block in blocks:
@@ -150,8 +168,7 @@ def parse_srt(srt_content):
         dialogue_lines = lines[2:]
 
         current_dialogue = ""
-        # Store the speaker who initiated the block's dialogue, 
-        # used as the default if no new speaker is found within the block.
+        # Store the speaker who initiated the block's dialogue
         block_initial_speaker = last_known_speaker
         
         # --- Multi-line and Multi-speaker processing within the block ---
@@ -162,13 +179,18 @@ def parse_srt(srt_content):
                 continue
 
             # Pattern to split line by (Potential_Speaker: ) and capture the delimiter
-            # Example: "Hello. John: How are you? Jane: Fine."
             segments = re.split(r'((?:[\w\s&]+?): )', line)
             
-            # The first segment is always dialogue (may be empty if line starts with Speaker:)
-            # The pattern creates segments like: [dialogue_before_tag, tag, dialogue_after_tag, tag, ...]
-            
-            # --- Process segments in order ---
+            # --- Case 1: No Interjection Found on this line (len(segments) <= 1) ---
+            if len(segments) <= 1:
+                # Simple accumulation of the line
+                if current_dialogue:
+                    current_dialogue += " " + line
+                else:
+                    current_dialogue = line
+                continue 
+
+            # --- Case 2: Interjection(s) or Speaker at start found (len(segments) > 1) ---
             
             i = 0
             while i < len(segments):
@@ -177,8 +199,8 @@ def parse_srt(srt_content):
                 
                 if not segment:
                     continue
-                    
-                # 1. Check if the segment is a captured speaker tag (ends with ':')
+
+                # Check if the segment is a captured speaker tag (ends with ':')
                 if segment.endswith(':') and len(segment) > 1:
                     speaker_tag = segment[:-1].strip()
                     
@@ -186,18 +208,17 @@ def parse_srt(srt_content):
                         
                         # --- Flush Accumulated Dialogue Before New Speaker ---
                         if current_dialogue:
-                            # Use block_initial_speaker for the accumulated segment if this is the first flush 
-                            # (i.e., if it's the dialogue at the start of the block).
-                            # Otherwise, use last_known_speaker.
                             speaker_to_use = block_initial_speaker if not data or data[-1][0] != time_start else last_known_speaker
                             append_row_and_update_state(speaker_to_use, current_dialogue)
                             current_dialogue = "" # Flush
                             
                         # --- Process New/Interjection Speaker ---
                         speaker = speaker_tag
-                        dialogue_segment = segments[i].strip() if i < len(segments) else ""
-                        i += 1 # Advance to the dialogue segment
                         
+                        # Get the dialogue for this speaker from the next segment
+                        dialogue_segment = segments[i].strip() if i < len(segments) else ""
+                        i += 1 
+
                         # Create a new entry immediately for the interjection/new speaker
                         if dialogue_segment:
                             append_row_and_update_state(speaker, dialogue_segment)
@@ -218,18 +239,16 @@ def parse_srt(srt_content):
                             current_dialogue = recombined_text
                         
                 else:
-                    # 3. This is dialogue text (no tag) -> Accumulate
+                    # 3. This is dialogue text (before the first tag, or after an invalid tag) -> Accumulate
                     if current_dialogue:
                         current_dialogue += " " + segment
                     else:
                         current_dialogue = segment
-
-            # End of line processing for segments. current_dialogue may hold leftovers.
+                        
+            # End of line processing for segments.
             
         # Finalize the last accumulated dialogue for the entire block
         if current_dialogue:
-            # If the block has previous entries, use the last known speaker.
-            # If the block is entirely one accumulated dialogue, use the global last_known_speaker (block_initial_speaker).
             speaker_to_use = block_initial_speaker if not data or data[-1][0] != time_start else last_known_speaker
             
             append_row_and_update_state(speaker_to_use, current_dialogue)
@@ -293,7 +312,9 @@ def main_app():
         styled_df_display.to_excel(output, index=False, engine='openpyxl')
         output.seek(0)
 
+        # Get original file name base
         original_name_base = uploaded_file.name.rsplit('.', 1)[0]
+        # Set new file name
         file_name = f"{original_name_base}.xlsx"
         
         st.download_button(
