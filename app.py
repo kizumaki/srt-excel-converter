@@ -6,13 +6,19 @@ from datetime import datetime
 
 # --- CONFIGURATION ---
 MAX_SPEAKER_NAME_LENGTH = 35 
+MAX_SPEAKER_NAME_WORDS = 4 # New heuristic: Speaker tag should not exceed 4 words
 
 # List of common non-speaker phrases to explicitly exclude (must be lowercase)
 NON_SPEAKER_PHRASES = [
     "the only problem",
     "note",
     "warning",
-    "things"
+    "things",
+    # New exclusions requested by user
+    "and on the way we came across this",
+    "this is the highest swing in europe",
+    "and i swear",
+    "which meant"
 ]
 
 # Color palette for distinct speaker styling (light background colors)
@@ -27,19 +33,19 @@ COLOR_PALETTE = [
     'background-color: #F0E68C'
 ]
 
-# --- SPEAKER VALIDATION ---
+# --- SPEAKER VALIDATION (FINAL IMPROVED VERSION) ---
 
 def is_valid_speaker_tag(tag):
     """
     Checks if a tag is likely a speaker name based on exclusion list,
-    capitalization, and allowed character rules.
+    word count, capitalization, and allowed character rules.
     """
     tag = tag.strip()
     
     if not tag:
         return False
 
-    # 1. Exclusion Check
+    # 1. Exclusion Check: If the tag matches a known non-speaker phrase, reject it.
     if tag.lower() in NON_SPEAKER_PHRASES:
         return False
         
@@ -47,21 +53,32 @@ def is_valid_speaker_tag(tag):
     if len(tag) > MAX_SPEAKER_NAME_LENGTH:
         return False
 
-    # 3. Capitalization check (Heuristic to filter common nouns)
-    
+    # 3. Word Count Heuristic Check (Strong Filter)
+    # Normalize the tag for accurate word counting (handle 'and' and '&')
     normalized_tag = tag.replace(' and ', ' ').replace(' and', '').replace('&', ' ').strip()
     
     if not normalized_tag:
         return False
+        
+    word_count = len(normalized_tag.split())
+    if word_count > MAX_SPEAKER_NAME_WORDS:
+        # A tag with 5 or more words is extremely unlikely to be a speaker name.
+        return False 
 
+
+    # 4. Capitalization check (Heuristic to filter common nouns)
+    
     first_word = normalized_tag.split()[0] if normalized_tag.split() else normalized_tag
     
     if first_word[0].isalpha() and first_word[0].islower():
+        # Fails if the very first word starts with a lowercase letter (e.g., "things:")
         return False
         
     if tag.isupper():
+        # Allows all-caps roles like "NARRATOR"
         return True
         
+    # Passes if it starts with an uppercase letter and is under the word limit.
     return True
 
 
@@ -178,7 +195,6 @@ def main_app():
     st.title("🎬 SRT to Excel Converter (Intelligent Speaker Recognition)")
     st.markdown("---")
 
-    # Vietnamese text changed to English: "Tải lên file SRT (.srt)" -> "Upload SRT File (.srt)"
     uploaded_file = st.file_uploader("Upload SRT File (.srt)", type="srt")
 
     if uploaded_file is not None:
@@ -200,7 +216,6 @@ def main_app():
             st.error("Could not parse any subtitles.")
             return
 
-        # Vietnamese text changed to English: "Bản Xem Trước Dữ Liệu Đã Chuyển Đổi" -> "Converted Data Preview"
         st.subheader("Converted Data Preview")
         
         styled_df_display = apply_styles(df_converted)
@@ -212,23 +227,20 @@ def main_app():
         styled_df_display.to_excel(output, index=False, engine='openpyxl')
         output.seek(0)
 
-        # 1. Get original file name base
+        # Get original file name base
         original_name_base = uploaded_file.name.rsplit('.', 1)[0]
-        # 2. Set new file name
+        # Set new file name
         file_name = f"{original_name_base}.xlsx"
         
-        # Vietnamese text changed to English: "Tải xuống File Excel (.xlsx)" -> "Download Excel File (.xlsx)"
         st.download_button(
             label="💾 Download Excel File (.xlsx)",
             data=output.read(),
             file_name=file_name,
             mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
         )
-        # Vietnamese text changed to English: "File sẵn sàng tải xuống dưới dạng **{file_name}**!" -> "File ready for download as **{file_name}**!"
         st.success(f"File ready for download as **{file_name}**!")
         
     else:
-        # English message remains: "Start by uploading your SRT file."
         st.info("Start by uploading your SRT file.")
 
 if __name__ == "__main__":
