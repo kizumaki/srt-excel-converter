@@ -178,7 +178,8 @@ def main_app():
     st.title("🎬 SRT to Excel Converter (Intelligent Speaker Recognition)")
     st.markdown("---")
 
-    uploaded_file = st.file_uploader("Tải lên file SRT (.srt)", type="srt")
+    # Vietnamese text changed to English: "Tải lên file SRT (.srt)" -> "Upload SRT File (.srt)"
+    uploaded_file = st.file_uploader("Upload SRT File (.srt)", type="srt")
 
     if uploaded_file is not None:
         try:
@@ -199,7 +200,8 @@ def main_app():
             st.error("Could not parse any subtitles.")
             return
 
-        st.subheader("Bản Xem Trước Dữ Liệu Đã Chuyển Đổi")
+        # Vietnamese text changed to English: "Bản Xem Trước Dữ Liệu Đã Chuyển Đổi" -> "Converted Data Preview"
+        st.subheader("Converted Data Preview")
         
         styled_df_display = apply_styles(df_converted)
         st.dataframe(styled_df_display, use_container_width=True)
@@ -212,19 +214,21 @@ def main_app():
 
         # 1. Get original file name base
         original_name_base = uploaded_file.name.rsplit('.', 1)[0]
-        # 2. Set new file name (REMOVED "_converted" suffix)
+        # 2. Set new file name
         file_name = f"{original_name_base}.xlsx"
         
+        # Vietnamese text changed to English: "Tải xuống File Excel (.xlsx)" -> "Download Excel File (.xlsx)"
         st.download_button(
-            label="💾 Tải xuống File Excel (.xlsx)",
+            label="💾 Download Excel File (.xlsx)",
             data=output.read(),
             file_name=file_name,
             mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
         )
-        st.success(f"File sẵn sàng tải xuống dưới dạng **{file_name}**!")
+        # Vietnamese text changed to English: "File sẵn sàng tải xuống dưới dạng **{file_name}**!" -> "File ready for download as **{file_name}**!"
+        st.success(f"File ready for download as **{file_name}**!")
         
     else:
-        # English message
+        # English message remains: "Start by uploading your SRT file."
         st.info("Start by uploading your SRT file.")
 
 if __name__ == "__main__":
