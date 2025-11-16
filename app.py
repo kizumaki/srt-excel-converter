@@ -5,15 +5,14 @@ import io
 from datetime import datetime
 
 # --- CONFIGURATION ---
-MAX_SPEAKER_NAME_LENGTH = 35 # Increased length limit for combined names (e.g., Ethan & Leo)
+MAX_SPEAKER_NAME_LENGTH = 35 
 
 # List of common non-speaker phrases to explicitly exclude (must be lowercase)
-# User can add more phrases here to improve accuracy
 NON_SPEAKER_PHRASES = [
-    "the only problem",  # Excluded per user request
-    "note",              # Common non-speaker tag
-    "warning",           # Common non-speaker tag
-    "things"             # Example of common noun
+    "the only problem",
+    "note",
+    "warning",
+    "things"
 ]
 
 # Color palette for distinct speaker styling (light background colors)
@@ -40,7 +39,7 @@ def is_valid_speaker_tag(tag):
     if not tag:
         return False
 
-    # 1. Exclusion Check: If the tag matches a known non-speaker phrase, reject it.
+    # 1. Exclusion Check
     if tag.lower() in NON_SPEAKER_PHRASES:
         return False
         
@@ -50,7 +49,6 @@ def is_valid_speaker_tag(tag):
 
     # 3. Capitalization check (Heuristic to filter common nouns)
     
-    # Normalize the tag to check the first word's capitalization
     normalized_tag = tag.replace(' and ', ' ').replace(' and', '').replace('&', ' ').strip()
     
     if not normalized_tag:
@@ -59,14 +57,11 @@ def is_valid_speaker_tag(tag):
     first_word = normalized_tag.split()[0] if normalized_tag.split() else normalized_tag
     
     if first_word[0].isalpha() and first_word[0].islower():
-        # Fails if the very first word starts with a lowercase letter (e.g., "things:")
         return False
         
-    # Check if the entire tag is uppercase (typical for roles/groups like "NARRATOR" or "GUYS")
     if tag.isupper():
         return True
         
-    # Passes if it starts with an uppercase letter, allowing for names/roles.
     return True
 
 
@@ -77,7 +72,6 @@ def parse_srt(srt_content):
     Parses SRT content to extract Start, End timecodes, Speaker, and Dialogue.
     """
     data = []
-    # Split content into subtitle blocks
     blocks = re.split(r'\n\s*\n', srt_content.strip())
     
     last_known_speaker = "Unknown" 
@@ -184,8 +178,6 @@ def main_app():
     st.title("🎬 SRT to Excel Converter (Intelligent Speaker Recognition)")
     st.markdown("---")
 
-    # The requested instruction markdown line is removed here.
-
     uploaded_file = st.file_uploader("Tải lên file SRT (.srt)", type="srt")
 
     if uploaded_file is not None:
@@ -200,11 +192,11 @@ def main_app():
             st.error("File encoding error. Please ensure your SRT file is correctly encoded (UTF-8 is recommended).")
             return
 
-        with st.spinner('Đang phân tích dữ liệu SRT...'):
+        with st.spinner('Analyzing SRT data...'):
             df_converted = parse_srt(srt_content)
         
         if df_converted.empty:
-            st.error("Không thể phân tích bất kỳ phụ đề nào.")
+            st.error("Could not parse any subtitles.")
             return
 
         st.subheader("Bản Xem Trước Dữ Liệu Đã Chuyển Đổi")
@@ -218,8 +210,10 @@ def main_app():
         styled_df_display.to_excel(output, index=False, engine='openpyxl')
         output.seek(0)
 
-        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-        file_name = f"SRT_Converted_{timestamp}_V5.xlsx" # Updated version number V5
+        # 1. Get original file name base
+        original_name_base = uploaded_file.name.rsplit('.', 1)[0]
+        # 2. Set new file name (REMOVED "_converted" suffix)
+        file_name = f"{original_name_base}.xlsx"
         
         st.download_button(
             label="💾 Tải xuống File Excel (.xlsx)",
@@ -230,7 +224,8 @@ def main_app():
         st.success(f"File sẵn sàng tải xuống dưới dạng **{file_name}**!")
         
     else:
-        st.info("Bắt đầu bằng cách tải lên file SRT của bạn.")
+        # English message
+        st.info("Start by uploading your SRT file.")
 
 if __name__ == "__main__":
     main_app()
