@@ -89,7 +89,7 @@ def is_valid_speaker_tag(tag):
     if not tag:
         return False
 
-    # 1. Exclusion Check
+    # 1. Exclusion Check (Explicit block list)
     if tag.lower() in NON_SPEAKER_PHRASES:
         return False
         
