@@ -5,7 +5,7 @@ import io
 from datetime import datetime
 
 # --- CONFIGURATION ---
-MAX_SPEAKER_NAME_LENGTH = 25 
+MAX_SPEAKER_NAME_LENGTH = 35 # Increased length limit for combined names
 
 # Color palette for distinct speaker styling (light background colors)
 COLOR_PALETTE = [
@@ -19,40 +19,49 @@ COLOR_PALETTE = [
     'background-color: #F0E68C'
 ]
 
-# --- SPEAKER VALIDATION ---
+# --- SPEAKER VALIDATION (IMPROVED) ---
 
 def is_valid_speaker_tag(tag):
     """
-    Checks if a tag is likely a speaker name based on capitalization rules.
-    1. Must not exceed max length.
-    2. Must start with an uppercase letter or be all uppercase.
+    Checks if a tag is likely a speaker name based on capitalization and allowed character rules.
+    Allows for names connected by 'and' or '&'.
     """
-    # 1. Length check (Constraint from previous version)
+    tag = tag.strip()
+    
+    # 1. Length check
     if len(tag) > MAX_SPEAKER_NAME_LENGTH:
         return False
         
-    # Remove leading/trailing spaces for consistency
-    tag = tag.strip()
-    
     if not tag:
         return False
 
-    # 2. Capitalization check (New improved heuristic)
+    # 2. Capitalization and Character check (Improved Heuristic)
+    # The pattern should allow:
+    # - Uppercase letters, lowercase letters
+    # - Spaces
+    # - The word 'and' (case-insensitive)
+    # - The ampersand symbol '&'
     
-    # Check if the first character is an uppercase letter (typical for names like "Tyler")
-    if tag[0].isalpha() and tag[0].isupper():
-        return True
+    # Normalize the tag for easier checking: replace " and " with a single space, and '&' with a space.
+    normalized_tag = tag.replace(' and ', ' ').replace(' and', '').replace('&', ' ').strip()
     
+    if not normalized_tag:
+        return False
+
+    # Check if the first word/name in the group starts with an uppercase letter
+    first_word = normalized_tag.split()[0] if normalized_tag.split() else normalized_tag
+    
+    if first_word[0].isalpha() and first_word[0].islower():
+        # Fails if the very first word starts with a lowercase letter (e.g., "things:")
+        return False
+        
     # Check if the entire tag is uppercase (typical for roles/groups like "NARRATOR" or "GUYS")
-    if tag.isupper() and tag.isalpha():
+    if tag.isupper():
         return True
         
-    # Allow numbers at the start (for rare cases like "C3PO")
-    if tag[0].isdigit():
-        return True
-        
-    # Fail if it's a common noun that starts with a lowercase letter (like "things")
-    return False
+    # Final check: Must primarily consist of letters, numbers, spaces, and connectors.
+    # We rely heavily on the capitalization check to filter out common nouns.
+    return True
 
 
 # --- SRT PROCESSING FUNCTIONS ---
@@ -60,10 +69,8 @@ def is_valid_speaker_tag(tag):
 def parse_srt(srt_content):
     """
     Parses SRT content to extract Start, End timecodes, Speaker, and Dialogue.
-    Implements speaker propagation and intelligent speaker detection.
     """
     data = []
-    # Split content into subtitle blocks
     blocks = re.split(r'\n\s*\n', srt_content.strip())
     
     last_known_speaker = "Unknown" 
@@ -75,6 +82,7 @@ def parse_srt(srt_content):
 
         # Extract Timecodes (Start and End)
         time_line = lines[1].strip()
+        # Updated Regex to be more flexible with speaker names containing special characters and spaces
         time_match = re.match(r'(\d{2}:\d{2}:\d{2},\d{3}) --> (\d{2}:\d{2}:\d{2},\d{3})', time_line)
         if not time_match:
             continue
@@ -86,6 +94,11 @@ def parse_srt(srt_content):
 
         current_speaker = None
         current_dialogue = ""
+        
+        # New Regex to allow spaces, & and 'and' in potential speaker names
+        # Pattern: ^([\w\s&]+?): ?(.*)$
+        # Group 1: The speaker name (allows letters, numbers, spaces, and '&')
+        # The '?' makes the quantifier non-greedy, which is important for names.
 
         for line in dialogue_lines:
             line = line.strip()
@@ -93,12 +106,12 @@ def parse_srt(srt_content):
                 continue
 
             # Check for "Speaker:" or "Speaker: Dialogue"
-            speaker_match = re.match(r'^([\w\s]+): ?(.*)$', line, re.DOTALL)
+            speaker_match = re.match(r'^([\w\s&]+?): ?(.*)$', line, re.DOTALL)
             
             if speaker_match:
                 potential_speaker = speaker_match.group(1).strip()
                 
-                # NEW VALIDATION STEP: Check if the tag is likely a speaker name
+                # VALIDATION STEP: Check if the tag is likely a speaker name (using the improved function)
                 if is_valid_speaker_tag(potential_speaker):
                     
                     # 1. Finalize previous accumulated dialogue, if any
@@ -156,12 +169,11 @@ def apply_styles(df):
         color_style = color_map.get(row['Speaker'], 'background-color: #FFFFFF')
         return [color_style] * len(row)
     
-    # Check if the output is available before applying style (to prevent errors in certain environments)
     try:
         styled_df = df.style.apply(highlight_speaker, axis=1)
         return styled_df
     except Exception:
-        return df # Return unstyled dataframe as fallback
+        return df
 
 # --- STREAMLIT APP ---
 
@@ -171,71 +183,54 @@ def main_app():
     st.markdown("---")
 
     st.markdown("""
-    **Instructions:**
-    1. Upload your **SRT (.srt)** file.
-    2. The app will automatically analyze the content, using capitalization rules to better identify human speakers and ignore notes/lists like `things:`.
-    3. Click the **Download Excel File (.xlsx)** button to get your styled file.
+    **Hướng dẫn:** Tải lên file **SRT (.srt)** của bạn. Ứng dụng sẽ tự động phân tích và sử dụng **quy tắc viết hoa** cùng **nhận diện tên nhóm (ví dụ: Ethan & Leo)** để xác định Người nói một cách chính xác nhất.
     """)
 
-    # File uploader
-    uploaded_file = st.file_uploader("Upload SRT File (.srt)", type="srt")
+    uploaded_file = st.file_uploader("Tải lên file SRT (.srt)", type="srt")
 
     if uploaded_file is not None:
         try:
-            # Read and decode file content
-            # Use 'latin-1' as a fallback if 'utf-8' fails, since some SRT files use different encodings
+            # Read and decode file content with fallback encoding
             try:
                 srt_content = uploaded_file.read().decode("utf-8")
             except UnicodeDecodeError:
                 srt_content = uploaded_file.read().decode("latin-1")
                 
         except Exception:
-            st.error("File encoding error. Please ensure your SRT file is correctly encoded (UTF-8 is recommended).")
+            st.error("Lỗi mã hóa file. Vui lòng đảm bảo file SRT của bạn được lưu dưới dạng UTF-8.")
             return
 
-        # 1. Parse content
-        with st.spinner('Analyzing SRT data...'):
+        with st.spinner('Đang phân tích dữ liệu SRT...'):
             df_converted = parse_srt(srt_content)
         
         if df_converted.empty:
-            st.error("Could not parse any subtitles. Please check the SRT file format.")
+            st.error("Không thể phân tích bất kỳ phụ đề nào.")
             return
 
-        st.subheader("Converted Data Preview")
+        st.subheader("Bản Xem Trước Dữ Liệu Đã Chuyển Đổi")
         
-        # 2. Apply styling for display and Excel export
         styled_df_display = apply_styles(df_converted)
-        
-        # Display DataFrame in Streamlit
         st.dataframe(styled_df_display, use_container_width=True)
 
-        # 3. Download Button setup
         st.markdown("---")
         
-        # Use a BytesIO buffer to hold the Excel file in memory
         output = io.BytesIO()
-        
-        # Save the styled DataFrame to the buffer
         styled_df_display.to_excel(output, index=False, engine='openpyxl')
-        
-        output.seek(0) # Rewind the buffer
+        output.seek(0)
 
-        # Create file name
         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-        file_name = f"SRT_Converted_{timestamp}.xlsx"
+        file_name = f"SRT_Converted_{timestamp}_V3.xlsx" # Updated version number V3
         
-        # Download button
         st.download_button(
-            label="💾 Download Excel File (.xlsx)",
+            label="💾 Tải xuống File Excel (.xlsx)",
             data=output.read(),
             file_name=file_name,
             mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
         )
-        st.success(f"File ready for download as **{file_name}**!")
+        st.success(f"File sẵn sàng tải xuống dưới dạng **{file_name}**!")
         
     else:
-        st.info("Start by uploading your SRT file.")
+        st.info("Bắt đầu bằng cách tải lên file SRT của bạn.")
 
 if __name__ == "__main__":
-    import streamlit as st
     main_app()
