@@ -9,6 +9,7 @@ MAX_SPEAKER_NAME_LENGTH = 35
 MAX_SPEAKER_NAME_WORDS = 4 
 
 # List of common non-speaker phrases to explicitly exclude (must be lowercase)
+# UPDATED LIST FROM USER FEEDBACK
 NON_SPEAKER_PHRASES = [
     "the only problem",
     "note",
@@ -22,7 +23,46 @@ NON_SPEAKER_PHRASES = [
     "and remember",         
     "official distance",    
     "first and foremost",   
-    "i said"                
+    "i said",
+    "here we go",           # NEWLY ADDED
+    "next up",              # NEWLY ADDED
+    "first up",             # NEWLY ADDED
+    "so the question is",   # NEWLY ADDED
+    "i was growing up",     # NEWLY ADDED
+    "you might be wondering",# NEWLY ADDED
+    "all i know is",        # NEWLY ADDED
+    "the good news is",     # NEWLY ADDED
+    "the true test is",     # NEWLY ADDED
+    "just as i suspected",  # NEWLY ADDED
+    "like i said",          # NEWLY ADDED
+    "i told them all",      # NEWLY ADDED
+    "and best of all",      # NEWLY ADDED
+    "the point is",         # NEWLY ADDED
+    "i was thinking",       # NEWLY ADDED
+    "first of all",         # NEWLY ADDED
+    "as a reminder",        # NEWLY ADDED
+    "quick reminder",       # NEWLY ADDED
+    "coming up",            # NEWLY ADDED
+    "next step",            # NEWLY ADDED
+    "and that means",       # NEWLY ADDED
+    "so to be clear",       # NEWLY ADDED
+    "but the truth is",     # NEWLY ADDED
+    "score to beat",        # NEWLY ADDED
+    "keep in mind",         # NEWLY ADDED
+    "and it says",          # NEWLY ADDED
+    "and the best part",    # NEWLY ADDED
+    "good news is",         # NEWLY ADDED
+    "bad news",             # NEWLY ADDED
+    "welcome to round 2",   # NEWLY ADDED
+    "welcome to round 3",   # NEWLY ADDED
+    "welcome to round 6"    # NEWLY ADDED
+]
+
+# List of common sentence/clause starters and articles (must be lowercase)
+SENTENCE_STARTER_WORDS = [
+    "the", "this", "that", "and", "but", "it", "i", "we", "you", "they", "he", "she", 
+    "there", "here", "what", "which", "who", "when", "why", "how", "a", "an", "my", "his", 
+    "her", "your", "its", "our", "their"
 ]
 
 # Color palette for distinct speaker styling (18 unique styles)
@@ -74,8 +114,7 @@ def clean_dialogue_text(text):
 
 def is_valid_speaker_tag(tag):
     """
-    Checks if a tag is likely a speaker name based on exclusion list,
-    word count, capitalization, and allowed character rules.
+    Checks if a tag is likely a speaker name using multiple linguistic heuristics.
     """
     tag = tag.strip()
     
@@ -99,12 +138,18 @@ def is_valid_speaker_tag(tag):
     word_count = len(normalized_tag.split())
     if word_count > MAX_SPEAKER_NAME_WORDS:
         return False 
+    
+    # Get the first word of the potential tag (in lowercase)
+    first_word = normalized_tag.split()[0].lower() if normalized_tag.split() else normalized_tag.lower()
 
 
-    # 4. Capitalization check (Heuristic to filter common nouns)
-    
-    first_word = normalized_tag.split()[0] if normalized_tag.split() else normalized_tag
-    
+    # 4. Sentence Starter Rejection
+    if first_word in SENTENCE_STARTER_WORDS:
+        # Reject if it's not ALL CAPS (e.g., HOST, GUYS is OK, but "The problem" is not)
+        if not tag.isupper():
+            return False
+
+    # 5. Final Capitalization check
     if first_word[0].isalpha() and first_word[0].islower():
         return False
         
@@ -119,7 +164,6 @@ def is_valid_speaker_tag(tag):
 def parse_srt(srt_content):
     """
     Parses SRT content to extract Start, End timecodes, Speaker, and Dialogue.
-    Handles same-line interjections and prevents interjection speaker bleeding.
     """
     data = []
     blocks = re.split(r'\n\s*\n', srt_content.strip())
@@ -162,13 +206,7 @@ def parse_srt(srt_content):
                 continue
 
             # Pattern to split line by (Potential_Speaker: ) and capture the delimiter
-            # Example: "Hello. John: How are you? Jane: Fine."
             segments = re.split(r'((?:[\w\s&]+?): )', line)
-            
-            # The first segment is always dialogue (may be empty if line starts with Speaker:)
-            # The pattern creates segments like: [dialogue_before_tag, tag, dialogue_after_tag, tag, ...]
-            
-            # --- Process segments in order ---
             
             i = 0
             while i < len(segments):
@@ -177,7 +215,7 @@ def parse_srt(srt_content):
                 
                 if not segment:
                     continue
-                    
+
                 # 1. Check if the segment is a captured speaker tag (ends with ':')
                 if segment.endswith(':') and len(segment) > 1:
                     speaker_tag = segment[:-1].strip()
@@ -187,7 +225,6 @@ def parse_srt(srt_content):
                         # --- Flush Accumulated Dialogue Before New Speaker ---
                         if current_dialogue:
                             # Use block_initial_speaker for the accumulated segment if this is the first flush 
-                            # (i.e., if it's the dialogue at the start of the block).
                             # Otherwise, use last_known_speaker.
                             speaker_to_use = block_initial_speaker if not data or data[-1][0] != time_start else last_known_speaker
                             append_row_and_update_state(speaker_to_use, current_dialogue)
