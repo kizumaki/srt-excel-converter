@@ -9,20 +9,26 @@ MAX_SPEAKER_NAME_LENGTH = 35
 MAX_SPEAKER_NAME_WORDS = 4 
 
 # List of common non-speaker phrases to explicitly exclude (must be lowercase)
+# UPDATED LIST WITH USER'S LATEST FEEDBACK (65+ entries)
 NON_SPEAKER_PHRASES = [
-    "the only problem",
-    "note",
-    "warning",
-    "things",
-    "and on the way we came across this",
-    "this is the highest swing in europe",
-    "and i swear",
-    "which meant",
-    "the only thing is",
-    "and remember",         
-    "official distance",    
-    "first and foremost",   
-    "i said"                
+    "the only problem", "note", "warning", "things", "and on the way we came across this", 
+    "this is the highest swing in europe", "and i swear", "which meant", "the only thing is", 
+    "and remember", "official distance", "first and foremost", "i said", 
+    "here we go", "next up", "step 1", "step 2", "step 3", "and step 3", "first up", 
+    "so the question is", "i was growing up", "you might be wondering", "update", 
+    "nashville to miami", "all i know is", "unlike judy", "the good news is", 
+    "aer lingus seat", "the true test is", "just as i suspected", "like i said", 
+    "star review and said", "i told them all", "and best of all", "the point is", 
+    "americans", "i was thinking", "and they go", "first of all", "second", 
+    "are you like", "as a reminder", "round 2", "round 1", "round 3", "round 4", 
+    "round 5", "welcome to round 3", "the question is", "quick reminder", 
+    "in 2nd place", "coming up", "first stop", "next step", "and that means", 
+    "hashtag", "so to be clear", "your second word", "welcome to round 6", 
+    "battle finale time", "number 1", "number 2", "but the truth is", 
+    "score to beat", "and your winner", "\"crafty\" and \"betcha\". coming up", 
+    "next one", "keep in mind", "and it says", "you could say", "welcome to round 2", 
+    "and the best part", "onto round 2", "the ride we chose", "good news is", 
+    "bad news", "good news", "he thought", "3 teams remain"
 ]
 
 # Color palette for distinct speaker styling (18 unique styles)
@@ -165,11 +171,6 @@ def parse_srt(srt_content):
             # Example: "Hello. John: How are you? Jane: Fine."
             segments = re.split(r'((?:[\w\s&]+?): )', line)
             
-            # The first segment is always dialogue (may be empty if line starts with Speaker:)
-            # The pattern creates segments like: [dialogue_before_tag, tag, dialogue_after_tag, tag, ...]
-            
-            # --- Process segments in order ---
-            
             i = 0
             while i < len(segments):
                 segment = segments[i].strip()
@@ -177,7 +178,7 @@ def parse_srt(srt_content):
                 
                 if not segment:
                     continue
-                    
+
                 # 1. Check if the segment is a captured speaker tag (ends with ':')
                 if segment.endswith(':') and len(segment) > 1:
                     speaker_tag = segment[:-1].strip()
@@ -187,7 +188,6 @@ def parse_srt(srt_content):
                         # --- Flush Accumulated Dialogue Before New Speaker ---
                         if current_dialogue:
                             # Use block_initial_speaker for the accumulated segment if this is the first flush 
-                            # (i.e., if it's the dialogue at the start of the block).
                             # Otherwise, use last_known_speaker.
                             speaker_to_use = block_initial_speaker if not data or data[-1][0] != time_start else last_known_speaker
                             append_row_and_update_state(speaker_to_use, current_dialogue)
