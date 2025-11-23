@@ -9,7 +9,6 @@ MAX_SPEAKER_NAME_LENGTH = 35
 MAX_SPEAKER_NAME_WORDS = 4 
 
 # List of common non-speaker phrases to explicitly exclude (must be lowercase)
-# UPDATED LIST WITH USER'S LATEST FEEDBACK (65+ entries)
 NON_SPEAKER_PHRASES = [
     "the only problem", "note", "warning", "things", "and on the way we came across this", 
     "this is the highest swing in europe", "and i swear", "which meant", "the only thing is", 
@@ -80,8 +79,7 @@ def clean_dialogue_text(text):
 
 def is_valid_speaker_tag(tag):
     """
-    Checks if a tag is likely a speaker name based on exclusion list,
-    word count, capitalization, and allowed character rules.
+    Checks if a tag is likely a speaker name using multiple linguistic heuristics.
     """
     tag = tag.strip()
     
@@ -294,10 +292,9 @@ def main_app():
         st.success(f"**Tổng số Người nói được nhận dạng:** {speaker_count} người.")
         
         if speaker_count > 0:
-            with st.expander("Danh sách Người nói (Speaker List):"):
-                # Use Markdown to display the list clearly
-                speaker_list_str = "\n".join([f"* {s}" for s in actual_speakers])
-                st.markdown(speaker_list_str)
+            # Display as a single, continuous line
+            speaker_list_str = ", ".join(actual_speakers)
+            st.markdown(f"**Danh sách Người nói:** {speaker_list_str}")
         else:
             st.info("Không tìm thấy người nói rõ ràng (ngoại trừ các đoạn hội thoại không gắn tên).")
         # --- END NEW FEATURE ---
