@@ -9,20 +9,11 @@ MAX_SPEAKER_NAME_LENGTH = 35
 MAX_SPEAKER_NAME_WORDS = 4 
 
 # List of common non-speaker phrases to explicitly exclude (must be lowercase)
+# UPDATED LIST WITH USER'S LATEST FEEDBACK (65+ entries)
 NON_SPEAKER_PHRASES = [
-    "the only problem",
-    "note",
-    "warning",
-    "things",
-    "and on the way we came across this",
-    "this is the highest swing in europe",
-    "and i swear",
-    "which meant",
-    "the only thing is",
-    "and remember",         
-    "official distance",    
-    "first and foremost",   
-    "i said",
+    "the only problem", "note", "warning", "things", "and on the way we came across this", 
+    "this is the highest swing in europe", "and i swear", "which meant", "the only thing is", 
+    "and remember", "official distance", "first and foremost", "i said", 
     "here we go", "next up", "step 1", "step 2", "step 3", "and step 3", "first up", 
     "so the question is", "i was growing up", "you might be wondering", "update", 
     "nashville to miami", "all i know is", "unlike judy", "the good news is", 
@@ -38,13 +29,6 @@ NON_SPEAKER_PHRASES = [
     "next one", "keep in mind", "and it says", "you could say", "welcome to round 2", 
     "and the best part", "onto round 2", "the ride we chose", "good news is", 
     "bad news", "good news", "he thought", "3 teams remain"
-]
-
-# List of common sentence/clause starters and articles (must be lowercase)
-SENTENCE_STARTER_WORDS = [
-    "the", "this", "that", "and", "but", "it", "i", "we", "you", "they", "he", "she", 
-    "there", "here", "what", "which", "who", "when", "why", "how", "a", "an", "my", "his", 
-    "her", "your", "its", "our", "their"
 ]
 
 # Color palette for distinct speaker styling (18 unique styles)
@@ -96,7 +80,8 @@ def clean_dialogue_text(text):
 
 def is_valid_speaker_tag(tag):
     """
-    Checks if a tag is likely a speaker name using multiple linguistic heuristics.
+    Checks if a tag is likely a speaker name based on exclusion list,
+    word count, capitalization, and allowed character rules.
     """
     tag = tag.strip()
     
@@ -120,18 +105,12 @@ def is_valid_speaker_tag(tag):
     word_count = len(normalized_tag.split())
     if word_count > MAX_SPEAKER_NAME_WORDS:
         return False 
+
+
+    # 4. Capitalization check (Heuristic to filter common nouns)
     
-    # Get the first word of the potential tag (in lowercase)
-    first_word = normalized_tag.split()[0].lower() if normalized_tag.split() else normalized_tag.lower()
-
-
-    # 4. Sentence Starter Rejection
-    if first_word in SENTENCE_STARTER_WORDS:
-        # Reject if it's not ALL CAPS (e.g., HOST, GUYS is OK, but "The problem" is not)
-        if not tag.isupper():
-            return False
-
-    # 5. Final Capitalization check
+    first_word = normalized_tag.split()[0] if normalized_tag.split() else normalized_tag
+    
     if first_word[0].isalpha() and first_word[0].islower():
         return False
         
@@ -316,12 +295,13 @@ def main_app():
         
         if speaker_count > 0:
             with st.expander("Danh sách Người nói (Speaker List):"):
+                # Use Markdown to display the list clearly
                 speaker_list_str = "\n".join([f"* {s}" for s in actual_speakers])
                 st.markdown(speaker_list_str)
         else:
             st.info("Không tìm thấy người nói rõ ràng (ngoại trừ các đoạn hội thoại không gắn tên).")
         # --- END NEW FEATURE ---
-
+            
         st.subheader("Converted Data Preview")
         
         styled_df_display = apply_styles(df_converted)
