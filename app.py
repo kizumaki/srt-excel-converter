@@ -35,7 +35,7 @@ NON_SPEAKER_PHRASES = [
     "THE ROCKETS ARE BIGGER", "THE DISTANCE SHOULD BE FURTHER", "GET CRAFTY", "THAT WAS SO SICK",
     "OUT OF 100 CONTESTANTS", "THE FIRST ROUND IS BRUTAL", "YOU KNOW WHICH END GOES",
     "THE GAME IS ON", "THAT'S A GOOD THROW", "HE'S GOING FOR IT", "WE GOT THIS",
-    "LAUNCH", "OH NO", "OH", "AH", "YEP", "WAIT", "YEAH", "WOO", "OKAY", "YES", "I ANH", "o Bri", "ng"
+    "LAUNCH", "OH NO", "OH", "AH", "YEP", "WAIT", "YEAH", "WOO", "OKAY", "YES", "I ANH", "o Bri", "ng", "Quick update", "Distorted", "My first question is", "And the best part is", "But as Gordon Ramsay might say", "But the good news is", "Let me just say", "But the best part", "I will say though", "ll say is, Update", "To all of you watching with me right now", "This is the life", "I have a question", "I will be honest", "so I can update my Instagram bio to say"
 ]
 
 # Color palette for distinct speaker styling (18 unique styles)
