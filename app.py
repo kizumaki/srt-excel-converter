@@ -27,7 +27,15 @@ NON_SPEAKER_PHRASES = [
     "score to beat", "and your winner", "\"crafty\" and \"betcha\". coming up", 
     "next one", "keep in mind", "and it says", "you could say", "welcome to round 2", 
     "and the best part", "onto round 2", "the ride we chose", "good news is", 
-    "bad news", "good news", "he thought", "3 teams remain"
+    "bad news", "good news", "he thought", "3 teams remain", "AND REMEMBER", "OFFICIAL DISTANCE", "GOOD NEWS FOR THEIR TEAMMATES", 
+    "LL BE HONEST", "FIRST AND FOREMOST", "I SAID", "THE ONLY THING LEFT TO SETTLE", 
+    "QUESTION IS", "FINALISTS", "WHISPERS", "SRT CONVERSION", 
+    "WILL RED THRIVE OR WILL RED BE DEAD", "BUT REMEMBER", "THE RESULTS ARE IN", 
+    "WE CHALLENGED", "I THINK", "IN THEIR DEFENSE", "THE PEAK OF HIS LIFE WAS DOING THE SPACETHING",
+    "THE ROCKETS ARE BIGGER", "THE DISTANCE SHOULD BE FURTHER", "GET CRAFTY", "THAT WAS SO SICK",
+    "OUT OF 100 CONTESTANTS", "THE FIRST ROUND IS BRUTAL", "YOU KNOW WHICH END GOES",
+    "THE GAME IS ON", "THAT'S A GOOD THROW", "HE'S GOING FOR IT", "WE GOT THIS",
+    "LAUNCH", "OH NO", "OH", "AH", "YEP", "WAIT", "YEAH", "WOO", "OKAY", "YES", "I ANH", "o Bri", "ng"
 ]
 
 # Color palette for distinct speaker styling (18 unique styles)
